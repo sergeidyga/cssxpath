@@ -4,12 +4,12 @@ Converts CSS3 selectors into XPath expression. Based on abandoned [Firebug code]
 
 Install
 ------------
-`npm i cssxpath`
+`npm i convert-cssxpath`
 
 Examples
 -----
 ```js
-const cssxpath = require('cssxpath');
+const cssxpath = require('convert-cssxpath');
 cssxpath.convert('[attribute]')
 /*
 * Output: //*[@attribute]
@@ -17,7 +17,7 @@ cssxpath.convert('[attribute]')
 ```
 Or if you want to test different CSS selectors - you may input them in prompt using:
 ```js
-const cssxpath = require('cssxpath');
+const cssxpath = require('convert-cssxpath');
 cssxpath.ask()
 /*
 * Run console interface and ask you to enter CSS selector

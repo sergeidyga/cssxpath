@@ -1,8 +1,9 @@
 {
-  "name": "cssxpath",
-  "version": "0.0.1",
+  "name": "convert-cssxpath",
+  "version": "0.0.3",
   "license": "BSD-3-Clause",
   "description": "Convert CSS into XPath",
+  "author": "sergeidyga",
   "main": "index.js",
   "repository": {
     "type": "git",
@@ -18,9 +19,18 @@
     "css",
     "css-convert",
     "css-selectors",
-    "css to xpath"
+    "css to xpath",
+    "css2xpath",
+    "csstoxpath"
   ],
   "scripts": {
     "test": "mocha --reporter tap"
+  },
+  "bugs": {
+    "url": "https://github.com/sergeidyga/cssxpath/issues"
+  },
+  "directories": {
+    "test": "test"
   }
+
 }
