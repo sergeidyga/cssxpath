@@ -1,11 +1,20 @@
 const patterns = require('./patterns');
 
-function specialSelectorToXPathPiece(element) {
+function specialSelectorToXPathPiece(element, hasPseudoNot = false) {
     switch (element.specialSelectorType) {
         case '#': // ID
-            return `[@id="${element.specialSelectorValue}"]`;
+            if (hasPseudoNot) {
+                return `[not(@id="${element.specialSelectorValue}")`
+            }
+            else {
+                return `[@id="${element.specialSelectorValue}"]`
+            }
         case '.': // class
-            return `[contains(@class, "${element.specialSelectorValue}")]`;
+            if (hasPseudoNot) {
+                return `[not(contains(@class, "${element.specialSelectorValue}"))`;
+            } else {
+                return `[contains(@class, "${element.specialSelectorValue}")]`;
+            }
         default:
             throw new SyntaxError(
                 `Invalid special selector type: ${element.specialSelectorType}.`
@@ -14,12 +23,22 @@ function specialSelectorToXPathPiece(element) {
 }
 
 function cssXPath(rule) {
+    const xpathResult = {};
     let index = 1;
+    let hasPseudoNot = false;
     let hasSibling = false;
-    const parts = ['//', '*'];
     let lastRule = null;
+    const parts = ['//', '*'];
 
     while (rule !== lastRule) {
+
+        // Function checks that pseudo has one single argument (e.g. `:not(a b)` ==> cause error)
+        function isPseudoClosed(pattern) {
+            const isPseudoClosed = patterns.pseudoClosing(rule.substr(pattern.fullGroup.length));
+            if (!isPseudoClosed) {
+                xpathResult.error = 'Wrong pseudo selector argument.';
+            }
+        }
 
         // Trim leading whitespace
         rule = rule.trim();
@@ -27,25 +46,60 @@ function cssXPath(rule) {
 
         lastRule = rule;
 
+        // Match '*'
         const asterisk = patterns.asterisk(rule);
         if (asterisk) {
             parts[index] = '*';
             rule = rule.substr(asterisk.fullGroup.length);
         }
 
-        // Match the element identifier, matches rules of the form "body", ".class" and "#id"
+        // Match pseudos
+        const pseudo = patterns.pseudo(rule);
+        if (pseudo) {
+            switch (pseudo.type) {
+                case ':not':
+                    hasPseudoNot = true;
+                    index = index + 1;
+                    rule = rule.substr(pseudo.fullGroup.length);
+                    break;
+                default:
+                    xpathResult.error = `Unsupported pseudo ${pseudo.type} \tOnly ":not(selector)" is supported in current version.`;
+                    break;
+            }
+        }
+
+        // Handle unsupported pseudos
+        const unsupportedPseudo = patterns.unsupportedPseudo(rule);
+        if (unsupportedPseudo) {
+            xpathResult.error = `Unsupported pseudo "${unsupportedPseudo.fullGroup}". \tOnly ":not(selector)" is supported in current version.`;
+            break;
+        }
+
+        // Match element, ".class" or "#id"
         const element = patterns.element(rule);
         if (element) {
-            if (element.specialSelectorType) {
-                parts.push(specialSelectorToXPathPiece(element));
-            } else if (element.namespace) {
-                // TODO: implement namespaces functionality
-                parts[index] = element.namespace;
-            } else {
-                parts[index] = element.elementName;
+
+            switch (true) {
+
+                case (!!element.specialSelectorType):
+                    parts.push(specialSelectorToXPathPiece(element, hasPseudoNot));
+                    hasPseudoNot && isPseudoClosed(element);
+                    break;
+
+                case (!!element.namespace):
+                    parts[index] = element.namespace; // TODO: implement namespaces functionality
+                    break;
+
+                default:
+                    if (hasPseudoNot) {
+                        parts[index] = `[not(self::${element.elementName})`;
+                        hasPseudoNot && isPseudoClosed(element);
+                    } else parts[index] = element.elementName;
+
             }
 
             rule = rule.substr(element.fullGroup.length);
+
             if (hasSibling) {
                 parts.push('[1]');
                 hasSibling = false;
@@ -61,45 +115,51 @@ function cssXPath(rule) {
                 attribute.value = attribute.value.replace(new RegExp('\"', 'g'), '\'');
             }
 
-            // matched a rule like [field~='thing'] or [name='Title']
+            let attributeXpath = '';
+
+            // matches rules like [class=value]
             switch (true) {
                 case (attribute.isContains):
-                    parts.push(`[contains(@${attribute.field}, "${attribute.value}")]`);
+                    attributeXpath = (`contains(@${attribute.field}, "${attribute.value}")`);
                     break;
                 case (attribute.isStartsWith):
-                    parts.push(`[starts-with(@${attribute.field}, "${attribute.value}")]`);
+                    attributeXpath = (`starts-with(@${attribute.field}, "${attribute.value}")`);
                     break;
                 case (attribute.isEndsWith):
-                    parts.push(`[(substring(@${attribute.field}, string-length(@${attribute.field}) - string-length("${attribute.value}") + 1)) = "${attribute.value}"]`);
+                    attributeXpath = (`(substring(@${attribute.field}, string-length(@${attribute.field}) - string-length("${attribute.value}") + 1)) = "${attribute.value}"`);
                     break;
                 case (attribute.isNotEqual):
-                    parts.push(`[@${attribute.field}!="${attribute.value}"]`);
+                    attributeXpath = (`@${attribute.field}!="${attribute.value}"`);
                     break;
                 default:
-                    parts.push(`[@${attribute.field}="${attribute.value}"]`);
+                    attributeXpath = (`@${attribute.field}="${attribute.value}"`);
                     break;
             }
 
+            if (hasPseudoNot) {
+                parts.push(`[not(${attributeXpath})`);
+                hasPseudoNot && isPseudoClosed(attribute);
+            } else parts.push(`[${attributeXpath}]`);
             rule = rule.substr(attribute.fullGroup.length);
         }
+
         else {
-            // matches rules like [mustExist], e.g., [disabled].
+            // matches attributes like [mustExist], e.g., [disabled].
             const attributePresence = patterns.attributePresence(rule);
             if (attributePresence) {
-                parts.push(`[@${attributePresence.attributeName}]`);
-
+                if (hasPseudoNot) {
+                    parts.push(`[not(@${attributePresence.attributeName})`);
+                    hasPseudoNot && isPseudoClosed(attributePresence);
+                } else parts.push(`[@${attributePresence.attributeName}]`);
                 rule = rule.substr(attributePresence.fullGroup.length);
             }
         }
 
-        // Skip over pseudo-classes and pseudo-elements, which are of no use to us
-        // e.g., :nth-child and :visited.
-        let pseudoGroups = patterns.pseudo(rule);
-        while (pseudoGroups) {
-            rule = rule.substr(pseudoGroups.fullGroup.length);
-
-            // if there are many, just skip them all right now.
-            pseudoGroups = patterns.pseudo(rule);
+        const pseudoClosing = patterns.pseudoClosing(rule);
+        if (hasPseudoNot && pseudoClosing) {
+            parts.push(']');
+            rule = rule.substr(pseudoClosing.fullGroup.length);
+            hasPseudoNot = false;
         }
 
         // Match combinators, e.g. html > body or html + body.
@@ -136,16 +196,30 @@ function cssXPath(rule) {
         }
     }
 
-    const xPath = parts.join('');
+    xpathResult.xpath = parts.join('');
 
-    // Log error if any part of string was not parsed or string is empty
-    if ((xPath === '//*') || (rule.length && rule === lastRule)) {
-        console.log('Unsupported CSS selector');
-        return;
-        // TODO: need to handle wrong CSS selectors in better way
+    // Handle parsing errors:
+    if (rule.length && rule === lastRule) {
+        if (!xpathResult.error) xpathResult.error = 'Unsupported CSS selector.';
+    }
+    if (xpathResult.xpath === '//*') {
+        if (!xpathResult.error) xpathResult.error = 'Empty CSS selector.';
+    }
+    if (xpathResult.error) {
+        xpathResult.xpath = '';
     }
 
-    return xPath;
+    return xpathResult
 }
 
-module.exports = cssXPath;
+// Wrap result object and return only xPath string;
+function cssXPathToString(rule) {
+    const xpathResult = cssXPath(rule);
+    if (xpathResult.error) {
+        console.error(xpathResult.error)
+    }
+    return xpathResult.xpath;
+}
+
+module.exports.cssXpath = cssXPath;
+module.exports.cssXPathToString = cssXPathToString;

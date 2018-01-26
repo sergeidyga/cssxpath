@@ -1,5 +1,5 @@
 const readline = require("readline");
-const csstoxpath = require('./cssxpath');
+const csstoxpath = require('./cssxpath').cssXPathToString;
 
 
 const rl = readline.createInterface({
