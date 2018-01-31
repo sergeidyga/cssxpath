@@ -56,17 +56,50 @@ function cssXPath(rule) {
         // Match pseudos
         const pseudo = patterns.pseudo(rule);
         if (pseudo) {
+
+            //TODO
+            if (pseudo.argument /* matches \dn+\d syntax */) {
+                // modify argument:
+                // case: \d
+                // case: \d n
+                // case: n + \d or n \d
+                // case: \d n + \d or n \d
+            }
+
             switch (pseudo.type) {
                 case ':not':
                     hasPseudoNot = true;
                     index = index + 1;
+                    rule = rule.substr(pseudo.firstGroup.length);
+                    break;
+                case ':nth-child':
+                    let tempRemovedPart = '';
+                    if (parts.indexOf('following-sibling') === -1) { //TODO refactor
+                        while (parts[parts.length - 1].indexOf(']') !== -1) { // cut attributes to past them in the end of function
+                            tempRemovedPart += parts[parts.length - 1];
+                            parts.splice([parts.length - 1]);
+                            index = parts.length - 1;
+                        }
+                    }
+
+                    if (parts[index - 1].indexOf('following-sibling') > -1) { // change syntax of defining node position in case of following-sibling
+                        parts.push(`[count(preceding-sibling::*) = ${parseInt(pseudo.argument) - 1}]`);
+                    } else if (parts[index] === '*') {
+                        parts[index] = `*[${pseudo.argument}]`;
+                    } else parts[index] = `*[${pseudo.argument}]/self::${parts[index]}`; // add self:: if node name defined
+
+                    tempRemovedPart && parts.push(tempRemovedPart);
                     rule = rule.substr(pseudo.fullGroup.length);
                     break;
+                case ':nth-of-type':
+                //todo
+                // if (index != node e.g attr or class ==> error)
                 default:
                     xpathResult.error = `Unsupported pseudo ${pseudo.type} \tOnly ":not(selector)" is supported in current version.`;
                     break;
             }
         }
+
 
         // Handle unsupported pseudos
         const unsupportedPseudo = patterns.unsupportedPseudo(rule);

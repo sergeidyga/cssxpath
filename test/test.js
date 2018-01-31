@@ -149,7 +149,7 @@ let negativeTestPairs = [
     [':not', 'Unsupported pseudo'],
     ['::checked', 'Unsupported pseudo'],
     [':checked', 'Unsupported pseudo'],
-    [':nth-child(1)', 'Unsupported pseudo']
+    // [':nth-child(1)', 'Unsupported pseudo']//todo
 
 ];
 
