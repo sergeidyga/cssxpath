@@ -106,7 +106,7 @@ function unsupportedPseudo(string) {
  *  `pseudo(string)` matches first part of supported pseudo selectors
  */
 function pseudo(string) {
-    const CSS_PSEUDO_PATTERN = /^((:[a-z-]+)\(\s*)((?![\s*\)]).+)\)/i;
+    const CSS_PSEUDO_PATTERN = /^((:[a-z-]+)\(\s*)((?![\s*]+)[^()]+?)\s*\)/i;
     const matches = CSS_PSEUDO_PATTERN.exec(string);
     if (!!matches) return {
         fullGroup: matches[0],

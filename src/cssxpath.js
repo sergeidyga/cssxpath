@@ -57,7 +57,7 @@ function cssXPath(rule) {
         const pseudo = patterns.pseudo(rule);
         if (pseudo) {
 
-            //TODO
+            //TODO add validation
             if (pseudo.argument /* matches \dn+\d syntax */) {
                 // modify argument:
                 // case: \d
@@ -73,8 +73,11 @@ function cssXPath(rule) {
                     rule = rule.substr(pseudo.firstGroup.length);
                     break;
                 case ':nth-child':
+                    if (isNaN(Number(pseudo.argument))) { // todo this is temp, until implementing CSS `n` formulas support
+                        xpathResult.error = 'Unable to parse pseudo argument';
+                    }
                     let tempRemovedPart = '';
-                    if (parts.indexOf('following-sibling') === -1) { //TODO refactor
+                    if (parts.indexOf('/following-sibling::') === -1) { //TODO refactor
                         while (parts[parts.length - 1].indexOf(']') !== -1) { // cut attributes to past them in the end of function
                             tempRemovedPart += parts[parts.length - 1];
                             parts.splice([parts.length - 1]);
@@ -82,8 +85,12 @@ function cssXPath(rule) {
                         }
                     }
 
-                    if (parts[index - 1].indexOf('following-sibling') > -1) { // change syntax of defining node position in case of following-sibling
-                        parts.push(`[count(preceding-sibling::*) = ${parseInt(pseudo.argument) - 1}]`);
+                    if (parts.indexOf('/following-sibling::') > -1) { // change syntax of defining node position in case of following-sibling
+                        if (pseudo.argument > 1) {
+                            parts.push(`[count(preceding-sibling::*) = ${Number(pseudo.argument) - 1}]`);
+                        } else {
+                            xpathResult.error = 'This locator will always return null'
+                        }
                     } else if (parts[index] === '*') {
                         parts[index] = `*[${pseudo.argument}]`;
                     } else parts[index] = `*[${pseudo.argument}]/self::${parts[index]}`; // add self:: if node name defined
@@ -92,10 +99,46 @@ function cssXPath(rule) {
                     rule = rule.substr(pseudo.fullGroup.length);
                     break;
                 case ':nth-of-type':
-                //todo
-                // if (index != node e.g attr or class ==> error)
+                    if (isNaN(Number(pseudo.argument))) { // todo this is temp, until implementing CSS `n` formulas support
+                        xpathResult.error = 'Unable to parse pseudo argument';
+                    }
+                    let tempRemovedPart2 = '';
+                    if (parts.indexOf('/following-sibling::') === -1) { //TODO refactor
+                        while (parts[parts.length - 1].indexOf(']') !== -1) { // cut attributes to past them in the end of function
+                            tempRemovedPart2 += parts[parts.length - 1];
+                            parts.splice([parts.length - 1]);
+                            index = parts.length - 1;
+                        }
+                    }
+                    // find following-siblings index:
+                    let followingSiblingsIndex = parts.indexOf('/following-sibling::');
+                    if (followingSiblingsIndex > -1 && parts[followingSiblingsIndex + 2] === '[1]') { // `catch case a+b:nth-of-type(n)` with n > 1 // todo fix duplication
+                        if (pseudo.argument > 1) {
+                            xpathResult.error = 'This locator will always return null'
+                        }
+                    }
+                    if (parts[index] === '*') { //todo check here!
+                        switch (Number(pseudo.argument)) {
+                            case 1:
+                                parts.push(`[name(preceding-sibling::*[${pseudo.argument}]) != name()]`);
+                                break;
+                            default:
+                                parts.push(`[name(preceding-sibling::*[${pseudo.argument}]) != name() and name(preceding-sibling::*[${Number(pseudo.argument) - 1}]) = name()]`);
+                        }
+
+                    } else if (followingSiblingsIndex > -1 && parts[followingSiblingsIndex + 2] === '[1]') { // `catch case a+b:nth-of-type(n)` with n > 1 // todo fix duplication
+                        if (pseudo.argument > 1) {
+                            xpathResult.error = 'This locator will always return null'
+                        } else if (Number(pseudo.argument) === 1) {
+                            // push nothing
+                        }
+                    } else parts.push(`[${pseudo.argument}]`);
+
+                    tempRemovedPart2 && parts.push(tempRemovedPart2);
+                    rule = rule.substr(pseudo.fullGroup.length);
+                    break;
                 default:
-                    xpathResult.error = `Unsupported pseudo ${pseudo.type} \tOnly ":not(selector)" is supported in current version.`;
+                    xpathResult.error = `Unsupported pseudo ${pseudo.type}.`;
                     break;
             }
         }
@@ -104,7 +147,7 @@ function cssXPath(rule) {
         // Handle unsupported pseudos
         const unsupportedPseudo = patterns.unsupportedPseudo(rule);
         if (unsupportedPseudo) {
-            xpathResult.error = `Unsupported pseudo "${unsupportedPseudo.fullGroup}". \tOnly ":not(selector)" is supported in current version.`;
+            xpathResult.error = `Unsupported pseudo "${unsupportedPseudo.fullGroup}".`;
             break;
         }
 
@@ -131,12 +174,12 @@ function cssXPath(rule) {
 
             }
 
-            rule = rule.substr(element.fullGroup.length);
-
             if (hasSibling) {
                 parts.push('[1]');
                 hasSibling = false;
             }
+
+            rule = rule.substr(element.fullGroup.length);
         }
 
         // Match attribute selectors
@@ -173,6 +216,7 @@ function cssXPath(rule) {
                 parts.push(`[not(${attributeXpath})`);
                 hasPseudoNot && isPseudoClosed(attribute);
             } else parts.push(`[${attributeXpath}]`);
+
             rule = rule.substr(attribute.fullGroup.length);
         }
 
@@ -185,6 +229,10 @@ function cssXPath(rule) {
                     hasPseudoNot && isPseudoClosed(attributePresence);
                 } else parts.push(`[@${attributePresence.attributeName}]`);
                 rule = rule.substr(attributePresence.fullGroup.length);
+            }
+            if (hasSibling) {
+                parts.push('[1]');
+                hasSibling = false;
             }
         }
 
@@ -217,6 +265,12 @@ function cssXPath(rule) {
 
             index = parts.length;
             parts.push('*');
+
+            if (hasSibling) {
+                parts.push('[1]');
+                hasSibling = false;
+            }
+
             rule = rule.substr(combinator.fullGroup.length);
         }
 
