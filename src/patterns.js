@@ -117,6 +117,24 @@ function pseudo(string) {
 }
 
 /**
+ *  validate (1n+0) based argument in position pseudo classes
+ */
+function nthArgument(string) {
+    const CSS_NTH_ARGUMENT = /^([-]?\d*)$|^([-]?\d*)n([+-][\d]+)?$|^(odd)$|^(even)$/;
+    const matches = CSS_NTH_ARGUMENT.exec(string);
+    if (!!matches) return {
+        fullGroup: matches[0],
+        number: matches[1],
+        mod: matches[2],
+        pos: matches[3],
+        odd: matches[4],
+        even: matches[5]
+    }
+}
+
+
+
+/**
  *  `pseudoEnd(string)` matches closing part of supported pseudo selectors, e.g. ")"
  */
 function pseudoClosing(string) {
@@ -161,5 +179,6 @@ module.exports = {
     combinator,
     comma,
     pseudo,
-    pseudoClosing
+    pseudoClosing,
+    nthArgument
 };
