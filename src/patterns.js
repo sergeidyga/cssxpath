@@ -120,7 +120,7 @@ function pseudo(string) {
  *  validate (1n+0) based argument in position pseudo classes
  */
 function nthArgument(string) {
-    const CSS_NTH_ARGUMENT = /^([-]?\d*)$|^([-]?\d*)n([+-][\d]+)?$|^(odd)$|^(even)$/;
+    const CSS_NTH_ARGUMENT = /^([-]?\d+)*$|^([-]?\d+)*n([+-][\d]+)?$|^(odd)$|^(even)$/;
     const matches = CSS_NTH_ARGUMENT.exec(string);
     if (!!matches) return {
         fullGroup: matches[0],

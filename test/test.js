@@ -5,6 +5,7 @@ const cssxpathObject = require('../src/cssxpath').cssXpath;
 let testPairs = [
 
     // Elements and special selectors
+    ['*', '//*'],
     ['* *', '//*//*'],
     ['div', '//div'],
     ['a123', '//a123'],
@@ -128,7 +129,70 @@ let testPairs = [
     ['a + b:nth-of-type(1)', '//a/following-sibling::b[1]'],
     ['a + *:nth-of-type(1)', '//a/following-sibling::*[1][name(preceding-sibling::*[1]) != name()]'],
     ['a~b:nth-of-type(2)', '//a/following-sibling::b[2]'],
-    ['a ~ *:nth-of-type(1)', '//a/following-sibling::*[name(preceding-sibling::*[1]) != name()]']
+    ['a ~ *:nth-of-type(1)', '//a/following-sibling::*[name(preceding-sibling::*[1]) != name()]'],
+
+    // :nth-of-type with formulas in argument (e.g. 2n+5)
+    ['a:nth-of-type(n)', '//a'],
+    ['a:nth-of-type(1n)', '//a'],
+    ['a:nth-of-type(n+3)', '//a[position() >= 3]'],
+    ['a:nth-of-type(1n+2)', '//a[position() >= 2]'],
+    ['a:nth-of-type(0n+1)', '//a[1]'],
+    ['a:nth-of-type(1n-10)', '//a'],
+    ['a:nth-of-type(n-0)', '//a'],
+    ['a:nth-of-type(1n+10)', '//a[position() >= 10]'],
+    ['a:nth-of-type(-1n+5)', '//a[position() <= 5]'],
+    ['a:nth-of-type(-3n+5)', '//a[(position() - 5) mod 3 = 0 and position() <= 5]'],
+    ['a:nth-of-type(4n-5)', '//a[(position() + 5) mod 4 = 0]'],
+    ['a:nth-of-type(2n+1)', '//a[(position() - 1) mod 2 = 0]'],
+    ['a.someClass#someId[attr1][attr2="value"]:nth-of-type(2n+3)', '//a[(position() - 3) mod 2 = 0 and position() >= 3][@attr2="value"][@attr1][@id="someId"][contains(@class, "someClass")]'],
+    ['a:nth-of-type(odd)', '//a[(position() - 1) mod 2 = 0]'],
+    ['a:nth-of-type(even)', '//a[position() mod 2 = 0]'],
+    ['a:nth-of-type(3n)', '//a[position() mod 3 = 0]'],
+    ['a~b:nth-of-type(3n+2)', '//a/following-sibling::b[(position() - 2) mod 3 = 0 and position() >= 2]'],
+    ['a~b:nth-of-type(3n-2)', '//a/following-sibling::b[(position() + 2) mod 3 = 0]'],
+    ['a+b:nth-of-type(-3n+2)', '//a/following-sibling::b[1][(position() - 2) mod 3 = 0 and position() <= 2]'],
+    ['a+b:nth-of-type(125n+1)', '//a/following-sibling::b[1]'],
+    ['a+b:nth-of-type(1n)', '//a/following-sibling::b[1]'],
+    ['a+b:nth-of-type(2n-1)', '//a/following-sibling::b[1][(position() + 1) mod 2 = 0]'],
+    ['a+b:nth-of-type(2n+1)', '//a/following-sibling::b[1]'],
+    ['a+b:nth-of-type(-15n+1)', '//a/following-sibling::b[1]'],
+    ['a+b:nth-of-type(-15n+16)', '//a/following-sibling::b[1][(position() - 16) mod 15 = 0 and position() <= 16]'],
+    ['a+b:nth-of-type(1)', '//a/following-sibling::b[1]'],
+    ['a~b:nth-of-type(-15n+16)', '//a/following-sibling::b[(position() - 16) mod 15 = 0 and position() <= 16]'],
+    ['a~b:nth-of-type(-15n+5)', '//a/following-sibling::b[(position() - 5) mod 15 = 0 and position() <= 5]'],
+
+    // :nth-child with formulas in argument (e.g. 2n+5)
+    [':nth-child(n)', '//*'],
+    [':nth-child(n-0)', '//*'],
+    [':nth-child(1n-10)', '//*'],
+    [':nth-child(1n+1)', '//*'],
+    [':nth-child(n-10)', '//*'],
+    ['a:nth-child(1n)', '//a'],
+    [':nth-child(n+2)', '//*[position() >= 2]'],
+    [':nth-child(1n+2)', '//*[position() >= 2]'],
+    ['a:nth-child(0n+1)', '//*[1]/self::a'],
+    [':nth-child(1n+10)', '//*[position() >= 10]'],
+    [':nth-child(-1n+1)', '//*[1]'],
+    [':nth-child(-3n+5)', '//*[(position() - 5) mod 3 = 0 and position() <= 5]'],
+    ['*:nth-child(4n-5)', '//*[(position() + 5) mod 4 = 0]'],
+    ['*:nth-child(2n+1)', '//*[(position() - 1) mod 2 = 0]'],
+    ['a:nth-child(odd)', '//*[(position() - 1) mod 2 = 0]/self::a'],
+    ['a:nth-child(even)', '//*[position() mod 2 = 0]/self::a'],
+    ['*:nth-child(3n)', '//*[position() mod 3 = 0]'],
+    ['a~*:nth-child(3n+1)', '//a/following-sibling::*[position() mod 3 = 0]'],
+    ['a~*:nth-child(3n+2)', '//a/following-sibling::*[(position() - 1) mod 3 = 0]'],
+    ['a~*:nth-child(5n+3)', '//a/following-sibling::*[count(preceding-sibling::*) >= 2 and (position() - 2) mod 5 = 0]'],
+    ['a~*:nth-child(-5n+3)', '//a/following-sibling::*[count(preceding-sibling::*) <= 2 and (position() - 2) mod 5 = 0]'],
+    ['a~*:nth-child(5n-3)', '//a/following-sibling::*[(position() + 4) mod 5 = 0]'],
+    ['a~:nth-child(5n-3)', '//a/following-sibling::*[(position() + 4) mod 5 = 0]'],
+    ['a~b:nth-child(n+2)', '//a/following-sibling::b'],
+    ['a+b:nth-child(n+2)', '//a/following-sibling::b[1]'],
+    ['a~b:nth-child(n+1)', '//a/following-sibling::b'],
+    ['a+b:nth-child(n+1)', '//a/following-sibling::b[1]'],
+    ['a+b:nth-child(n-10)', '//a/following-sibling::b[1]'],
+    ['a+b:nth-child(n+3)', '//a/following-sibling::b[1][count(preceding-sibling::*) >= 2]'],
+    ['a~b:nth-child(n+3)', '//a/following-sibling::b[count(preceding-sibling::*) >= 2]'],
+    ['a~b.someClass#someId[attr1][attr2="value"]:nth-child(2n+3)', '//a/following-sibling::b[contains(@class, "someClass")][@id="someId"][@attr1][@attr2="value"][count(preceding-sibling::*) >= 2 and (position() - 2) mod 2 = 0]']
 
 ];
 
@@ -145,7 +209,6 @@ let negativeTestPairs = [
 
     ['', 'Empty CSS selector.'],
     [' ', 'Empty CSS selector.'],
-    ['*', 'Empty CSS selector.'],
 
     ['123', 'Unsupported CSS selector.'],
     ['a 123', 'Unsupported CSS selector.'],
@@ -200,10 +263,33 @@ let negativeTestPairs = [
     [':nth-child(1 2)', 'Unable to parse pseudo argument'],
 
     ['a+b:nth-child(1)', 'This locator will always return null'],
+    ['a~b:nth-child(1)', 'This locator will always return null'],
     ['a+b:nth-of-type(2)', 'This locator will always return null'],
     ['a + b:nth-of-type(2)', 'This locator will always return null'],
     ['a+[a=b].class:nth-of-type(5)', 'This locator will always return null'],
-    ['a+*:nth-of-type(4)', 'This locator will always return null']
+    ['a+*:nth-of-type(4)', 'This locator will always return null'],
+
+    // Incorrect nth arguments:
+    [':nth-child(n+)', 'Unable to parse pseudo argument'],
+    [':nth-child(-n)', 'Unable to parse pseudo argument'],
+    [':nth-child(-)', 'Unable to parse pseudo argument'],
+    [':nth-child(-n+1)', 'Unable to parse pseudo argument'],
+    [':nth-child(-n+1)', 'Unable to parse pseudo argument'],
+    [':nth-child(+1)', 'Unable to parse pseudo argument'],
+    [':nth-child(n1)', 'Unable to parse pseudo argument'],
+    [':nth-child(1+n)', 'Unable to parse pseudo argument'],
+
+    // Always null nth arguments:
+    [':nth-child(-1n)', 'This locator will always return null'],
+    [':nth-child(0n)', 'This locator will always return null'],
+    ['a:nth-of-type(-1n)', 'This locator will always return null'],
+    [':nth-child(-1n-1)', 'This locator will always return null'],
+    ['a:nth-of-type(-1n-1)', 'This locator will always return null'],
+    [':nth-child(-1n-1)', 'This locator will always return null'],
+    ['a+b:nth-of-type(n+2)', 'This locator will always return null'],
+
+    // Not supported in this version *:nth-of-type
+    [':nth-of-type(-1n+2)', 'Argument \'-1n+2\' is not supported for *:nth-of-type in this version.'],
 
 ];
 
@@ -215,3 +301,31 @@ describe('Negative unit tests', function () {
         });
     }
 });
+
+let warningTestPairs = [
+
+    [':nth-child(n)', 'XPath condition [position()'],
+    [':nth-child(n+1)', 'XPath condition [position()'],
+    [':nth-child(2n+1)', 'XPath condition [position()'],
+    [':nth-child(1n-1)', 'XPath condition [position()'],
+
+    ['a+b:nth-child(n+2)', 'XPath condition [count(preceding-sibling::*)'],
+    ['a+b:nth-child(n+1)', 'XPath condition [count(preceding-sibling::*)'],
+    ['a+b:nth-child(n)', 'XPath condition [count(preceding-sibling::*)'],
+    ['a+b:nth-child(n-1)', 'XPath condition [count(preceding-sibling::*)'],
+    ['a+b:nth-child(2n+2)', 'XPath condition [count(preceding-sibling::*)'],
+    ['a+b:nth-child(2n+1)', 'XPath condition [count(preceding-sibling::*)'],
+    ['a+b:nth-child(2n)', 'XPath condition [count(preceding-sibling::*)'],
+    ['a+b:nth-child(2n-1)', 'XPath condition [count(preceding-sibling::*)'],
+
+];
+
+describe('Warning unit tests', function () {
+    for (let i = 0; i < warningTestPairs.length; i++) {
+        it(`"${warningTestPairs[i][0]}" is expected to cause log: "${warningTestPairs[i][1]}"`, function () {
+            assert((cssxpathObject(warningTestPairs[i][0]).warning).startsWith(warningTestPairs[i][1]), `Actual: ${cssxpathObject(warningTestPairs[i][0]).warning}`);
+        });
+    }
+});
+
+// todo test of turning warnings on/off

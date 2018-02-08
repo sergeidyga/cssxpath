@@ -1,5 +1,5 @@
 const readline = require("readline");
-const csstoxpath = require('./cssxpath').cssXPathToString;
+const cssxpath = require('../index');
 
 
 const rl = readline.createInterface({
@@ -12,7 +12,8 @@ let promptCall = () => {
         if (css === typeof("undefined")) {
             rl.close();
         } else {
-            if (csstoxpath(css)) console.log('xPath:', csstoxpath(css));
+            let result = cssxpath.convert(css);
+            result && console.log('xPath:', result);
             promptCall();
         }
     })

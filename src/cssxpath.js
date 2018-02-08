@@ -1,20 +1,11 @@
 const patterns = require('./patterns');
 
-function specialSelectorToXPathPiece(element, hasPseudoNot = false) {
+function parseSpecialSelector(element, hasPseudoNot = false) {
     switch (element.specialSelectorType) {
-        case '#': // ID
-            if (hasPseudoNot) {
-                return `[not(@id="${element.specialSelectorValue}")`
-            }
-            else {
-                return `[@id="${element.specialSelectorValue}"]`
-            }
+        case '#':
+            return `@id="${element.specialSelectorValue}"`;
         case '.': // class
-            if (hasPseudoNot) {
-                return `[not(contains(@class, "${element.specialSelectorValue}"))`;
-            } else {
-                return `[contains(@class, "${element.specialSelectorValue}")]`;
-            }
+            return `contains(@class, "${element.specialSelectorValue}")`;
     }
 }
 
@@ -25,6 +16,10 @@ function cssXPath(rule) {
     let hasSibling = false;
     let lastRule = null;
     const parts = ['//', '*'];
+
+    if (rule.trim() === '') {
+        xpathResult.error = 'Empty CSS selector.';
+    }
 
     while (rule !== lastRule) {
 
@@ -43,7 +38,6 @@ function cssXPath(rule) {
                 pos: 0
             };
             if (nthArgument.mod) {
-                if (nthArgument.mod === '-') nthArgument.mod = -1; //fixme improve pattern to get rid of this
                 modnpos.mod = Number(nthArgument.mod);
             }
             if (nthArgument.number) {
@@ -56,18 +50,22 @@ function cssXPath(rule) {
             }
             if (nthArgument.odd) {
                 modnpos.mod = 2;
+                modnpos.pos = 1;
             }
             if (nthArgument.even) {
                 modnpos.mod = 2;
+            }
+            if (nthArgument.fullGroup === 'n') { // (n)
+                modnpos.mod = 1;
                 modnpos.pos = 1;
             }
+
             return modnpos;
         }
 
 
         function calculatePosition(modnpos) {
-
-            let xpathNthArgument = ``;
+            let xpathNthArgument;
 
             // Define sign:
             let sign = '=';
@@ -75,29 +73,48 @@ function cssXPath(rule) {
             if (modnpos.mod === 0) sign = '=';
             if (modnpos.mod > 0) sign = '>=';
 
-            if ((modnpos.mod === 1 || modnpos.mod === -1)) { // (1n+1), (-1n+2), (n-5), (n+5)
-                xpathNthArgument = `[position() ${sign} ${modnpos.pos}]`;
-                if (modnpos.mod === -1 && modnpos.pos < 1) xpathResult.error = 'This locator will always return null'; // (-1n), (-1n-5) ===> [position() <= -5]
-            } else if (modnpos.mod <= 0 && modnpos.pos < 1) { // (-1n), (-1n-5),(-2n), (-1) or (0)
-                xpathResult.error = 'This locator will always return null'; // todo maybe return xpath anyway
-            } else if (modnpos.mod !== 0 && modnpos.pos > 0) { // (-2n+2), (2n+1)
-                xpathNthArgument = `[(position() - ${modnpos.pos}) mod ${modnpos.mod} = 0 and position() ${sign} ${modnpos.pos}]`;
-            } else if (modnpos.mod !== 0 && modnpos.pos < 0) { // (-2n-2) with out position condition e.g. (position() >= -2)
-                xpathNthArgument = `[(position() + ${-modnpos.pos}) mod ${modnpos.mod} = 0]`;
-            } else if (modnpos.mod !== 0 && modnpos.pos === 0) {
-                xpathNthArgument = `[position() mod ${modnpos.mod} = 0]`;
-            } else if (modnpos.mod === 0 && modnpos.pos > 0) { // (1), (15)
-                xpathNthArgument = `[${modnpos.pos}]`
-            } else {
-                throw new SyntaxError('Unable to parse nth argument');
+            if (modnpos.mod === 1) {
+                if (modnpos.pos <= 1) {
+                    xpathNthArgument = ``;
+                    xpathResult.warning = `XPath condition [position() ${sign} ${modnpos.pos}] was omitted`; // (n+1), (n), (n-100)
+                }
+                if (modnpos.pos > 1) xpathNthArgument = `[position() ${sign} ${modnpos.pos}]`; // (n+2)
             }
-
+            if (modnpos.mod === -1) {
+                if (modnpos.pos <= 0) xpathResult.error = 'This locator will always return null'; // (-1n), (-1n-1)
+                if (modnpos.pos === 1) {
+                    xpathNthArgument = `[1]`; // (-1n+1)
+                    xpathResult.warning = `XPath condition [position() ${sign} ${modnpos.pos}] was omitted`;
+                }
+                if (modnpos.pos > 1) xpathNthArgument = `[position() ${sign} ${modnpos.pos}]`; // (-1n+2)
+            }
+            if (modnpos.mod === 0) {
+                if (modnpos.pos <= 0) xpathResult.error = 'This locator will always return null'; // (0), (-1) // todo change to WARN?
+                if (modnpos.pos > 0) xpathNthArgument = `[${modnpos.pos}]`; // (1)
+            }
+            if (modnpos.mod > 0 && Math.abs(modnpos.mod) !== 1) {
+                if (modnpos.pos === 0) {
+                    xpathNthArgument = `[position() mod ${modnpos.mod} = 0]`; // (2n)
+                    xpathResult.warning = `XPath condition [position() ${sign} ${modnpos.pos}] was omitted`;
+                }
+                if (modnpos.pos === 1) {
+                    xpathNthArgument = `[(position() - ${modnpos.pos}) mod ${modnpos.mod} = 0]`; // (2n+1)
+                    xpathResult.warning = `XPath condition [position() ${sign} ${modnpos.pos}] was omitted`;
+                }
+                if (modnpos.pos > 1) xpathNthArgument = `[(position() - ${modnpos.pos}) mod ${modnpos.mod} = 0 and position() ${sign} ${modnpos.pos}]`; // (5n+2)
+                if (modnpos.pos < 0) xpathNthArgument = `[(position() + ${-modnpos.pos}) mod ${modnpos.mod} = 0]`; // (5n-5)
+            }
+            if (modnpos.mod < 0 && Math.abs(modnpos.mod) !== 1) {
+                if (modnpos.pos === 0) xpathNthArgument = `[(position() mod ${Math.abs(modnpos.mod)} = 0]`; // (-2n)
+                if (modnpos.pos > 0) xpathNthArgument = `[(position() - ${modnpos.pos}) mod ${Math.abs(modnpos.mod)} = 0 and position() ${sign} ${modnpos.pos}]`; //(-2n+1)
+                if (modnpos.pos <= 0) xpathResult.error = 'This locator will always return null'; // (-2n-1), (-2n) // todo change to WARN?
+            }
+            if (typeof xpathNthArgument === 'undefined' && typeof xpathResult.error === 'undefined') throw new SyntaxError('Unable to parse nth argument');
             return xpathNthArgument;
         }
 
-        function calculatePositionForFollowingSibling(modnpos) {
-            //fixme CASE of nth-child and following-sibling:
-            let xpathNthArgumentFS = ``; // for following-sibling;
+        function calculatePositionNthOfChildWithFollowingSibling(modnpos) { // Used for following-sibling ONLY!!! in case of :nth-child
+            let xpathNthArgumentFS; // for following-sibling;
 
             // Define sign:
             let sign = '=';
@@ -105,26 +122,53 @@ function cssXPath(rule) {
             if (modnpos.mod === 0) sign = '=';
             if (modnpos.mod > 0) sign = '>=';
 
-            if ((modnpos.mod === 1 || modnpos.mod === -1)) { // (1n+1), (-1n+2), (n-5), (n+5)
-                xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}]`;
-                if (modnpos.mod === -1 && modnpos.pos < 1) xpathResult.error = 'This locator will always return null'; // (-1n), (-1n-5) ===> [position() <= -5]
-            } else if (modnpos.mod <= 0 && modnpos.pos < 1) { // (-1n), (-1n-5),(-2n), (-1) or (0)
-                xpathResult.error = 'This locator will always return null'; // todo maybe return xpath anyway
-            } else if (modnpos.mod !== 0 && modnpos.pos === 1) {
-                xpathNthArgumentFS = `[position() mod ${modnpos.mod} = 0]`;
-            } else if (modnpos.mod !== 0 && modnpos.pos === 2) {
-                xpathNthArgumentFS = `[(position() - ${modnpos.pos - 1}) mod ${modnpos.mod} = 0]`;
-            } else if (modnpos.mod !== 0 && modnpos.pos > 2) { // (-2n+2), (2n+1)
-                xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1} and (position() - ${modnpos.pos - 1}) mod ${modnpos.mod} = 0]`;
-            } else if (modnpos.mod !== 0 && modnpos.pos < 1) { // (-2n-2) with out position condition e.g. (position() >= -2)
-                xpathNthArgumentFS = `[(position() + ${-(modnpos.pos - 1)}) mod ${modnpos.mod} = 0]`;
-            } else if (modnpos.mod === 0 && modnpos.pos > 0) { // (1), (15)
-                xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}]`;
-                if (modnpos.pos <= 1) xpathResult.error = 'This locator will always return null';// todo maybe return xpath anyway
-            } else {
-                throw new SyntaxError('Unable to parse nth argument for FS');
+            if (modnpos.mod === 1) {
+                if (modnpos.pos <= 2) {
+                    xpathNthArgumentFS = ``;
+                    xpathResult.warning = `XPath condition [count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}] was omitted`; // (n+2), (n), (n-100)
+                }
+                if (modnpos.pos > 2) xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}]`; // (n+3)
             }
-
+            if (modnpos.mod === -1) {
+                if (modnpos.pos <= 1) xpathResult.error = 'This locator will always return null'; // (-1n), (-1n-1)
+                if (modnpos.pos === 2) {
+                    xpathNthArgumentFS = ``; // (-1n+2)
+                    xpathResult.warning = `XPath condition [count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}] was omitted`;
+                }
+                if (modnpos.pos > 2) xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}]`; // (-1n+3)
+            }
+            if (modnpos.mod === 0) {
+                if (modnpos.pos <= 1) xpathResult.error = 'This locator will always return null'; // (1), (0), (-1) // todo change to WARN?
+                if (modnpos.pos > 1) xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}]`; // (2)
+            }
+            if (modnpos.mod > 0 && Math.abs(modnpos.mod) !== 1) {
+                if (modnpos.pos === 1) {
+                    xpathNthArgumentFS = `[position() mod ${modnpos.mod} = 0]`; // (2n+1)
+                    xpathResult.warning = `XPath condition [count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}] was omitted`;
+                }
+                if (modnpos.pos === 2) {
+                    xpathNthArgumentFS = `[(position() - ${modnpos.pos - 1}) mod ${modnpos.mod} = 0]`; // (2n+2)
+                    xpathResult.warning = `XPath condition [count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}] was omitted`;
+                }
+                if (modnpos.pos > 2) xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1} and (position() - ${modnpos.pos - 1}) mod ${modnpos.mod} = 0]`; // (5n+3)
+                if (modnpos.pos < 1) {
+                    xpathNthArgumentFS = `[(position() + ${-(modnpos.pos - 1)}) mod ${Math.abs(modnpos.mod)} = 0]`; // (2n), (2n-1)
+                    xpathResult.warning = `XPath condition [count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}] was omitted`;
+                }
+            }
+            if (modnpos.mod < 0 && Math.abs(modnpos.mod) !== 1) {
+                if (modnpos.pos === 1) {
+                    xpathNthArgumentFS = `[position() mod ${Math.abs(modnpos.mod)} = 0]`; // (2n+1)
+                    xpathResult.warning = `XPath condition [count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}] was omitted`;
+                }
+                if (modnpos.pos === 2) {
+                    xpathNthArgumentFS = `[(position() - ${modnpos.pos - 1}) mod ${Math.abs(modnpos.mod)} = 0]`; // (2n+2)
+                    xpathResult.warning = `XPath condition [count(preceding-sibling::*) ${sign} ${modnpos.pos - 1}] was omitted`;
+                }
+                if (modnpos.pos > 2) xpathNthArgumentFS = `[count(preceding-sibling::*) ${sign} ${modnpos.pos - 1} and (position() - ${modnpos.pos - 1}) mod ${Math.abs(modnpos.mod)} = 0]`; // (5n+3)
+                if (modnpos.pos < 1) xpathResult.error = 'This locator will always return null'; // (-2n-1), (-2n) // todo change to WARN?
+            }
+            if (typeof xpathNthArgumentFS === 'undefined' && typeof xpathResult.error === 'undefined') throw new SyntaxError('Unable to parse nth argument');
             return xpathNthArgumentFS
         }
 
@@ -135,7 +179,7 @@ function cssXPath(rule) {
 
         function getPositionFS(nthArgument) {
             let modnpos = validateArgument(nthArgument);
-            return calculatePositionForFollowingSibling(modnpos);
+            return calculatePositionNthOfChildWithFollowingSibling(modnpos);
         }
 
 
@@ -181,11 +225,16 @@ function cssXPath(rule) {
                             parts.push(getPositionFS(nthArgument));
                         } else if (parts[index] === '*') {
                             parts[index] = `*${getPosition(nthArgument)}`;
-                        } else parts[index] = `*${getPosition(nthArgument)}/self::${parts[index]}`; // add self:: if node name defined
+                        } else {
+                            let position = getPosition(nthArgument);
+                            if (position) parts[index] = `*${position}/self::${parts[index]}`; // add self:: if node name defined
+                            // in case of :nth-child(1n) position is empty
+                            // and //*/self::element can be simplified to //element
+                        }
 
                         tempRemovedPart && parts.push(tempRemovedPart);
                     }
-                        rule = rule.substr(pseudo.fullGroup.length);
+                    rule = rule.substr(pseudo.fullGroup.length);
 
                     break;
                 case ':nth-of-type':
@@ -199,11 +248,11 @@ function cssXPath(rule) {
                                 parts.splice([parts.length - 1]);
                                 index = parts.length - 1;
                             }
-                        }
+                        } // todo wrap and store validate argument
                         // find following-siblings index:
                         let followingSiblingsIndex = parts.indexOf('/following-sibling::');
                         if (followingSiblingsIndex > -1 && parts[followingSiblingsIndex + 2] === '[1]') { // `catch case a+b:nth-of-type(n)` with n > 1 // todo fix duplication
-                            if (validateArgument(nthArgument).pos > 1) {
+                            if (validateArgument(nthArgument).pos > 1 && validateArgument(nthArgument).mod >= 0) {
                                 xpathResult.error = 'This locator will always return null'
                             }
                         }
@@ -216,21 +265,23 @@ function cssXPath(rule) {
                                     parts.push(`[name(preceding-sibling::*[${Number(pseudo.argument)}]) != name() and name(preceding-sibling::*[${Number(pseudo.argument) - 1}]) = name()]`);
                                     break;
                                 default:
-                                    xpathResult.error = `Argument ${pseudo.argument} is not supported for *:nth-of-type in this version`; // (1n+1)-based formulas
+                                    xpathResult.error = `Argument '${pseudo.argument}' is not supported for *:nth-of-type in this version. \nUse {element}:nth-of-type(${pseudo.argument}) or *:nth-of-type({number}) instead`; // (1n+1)-based formulas
                                     break;
                             }
 
                         } else if (followingSiblingsIndex > -1 && parts[followingSiblingsIndex + 2] === '[1]') { // `catch case a+b:nth-of-type(n)` with n > 1 // todo fix duplication
-                            if (validateArgument(nthArgument).pos > 1) {
+                            if (validateArgument(nthArgument).pos > 1 && validateArgument(nthArgument).mod >= 0) {
                                 xpathResult.error = 'This locator will always return null'
                             } else if (validateArgument(nthArgument).pos === 1) {
                                 // push nothing
+                            } else {
+                                parts.push(`${getPosition(nthArgument)}`);
                             }
                         } else parts.push(`${getPosition(nthArgument)}`);
 
                         tempRemovedPart2 && parts.push(tempRemovedPart2);
                     }
-                        rule = rule.substr(pseudo.fullGroup.length);
+                    rule = rule.substr(pseudo.fullGroup.length);
 
 
                     break;
@@ -255,7 +306,7 @@ function cssXPath(rule) {
             switch (true) {
 
                 case (!!element.specialSelectorType):
-                    parts.push(specialSelectorToXPathPiece(element, hasPseudoNot));
+                    hasPseudoNot ? parts.push(`[not(${parseSpecialSelector(element)})`) : parts.push(`[${parseSpecialSelector(element)}]`);
                     hasPseudoNot && isPseudoClosed(element);
                     break;
 
@@ -382,13 +433,13 @@ function cssXPath(rule) {
 
     xpathResult.xpath = parts.join('');
 
-    // Handle parsing errors:
+// Handle parsing errors:
     if (rule.length && rule === lastRule) {
         if (!xpathResult.error) xpathResult.error = 'Unsupported CSS selector.';
     }
-    if (xpathResult.xpath === '//*') {
-        if (!xpathResult.error) xpathResult.error = 'Empty CSS selector.';
-    }
+// if (xpathResult.xpath === '//*') {
+//     if (!xpathResult.error) xpathResult.error = 'Empty CSS selector.';
+// }
     if (xpathResult.error) {
         xpathResult.xpath = '';
     }
@@ -400,9 +451,8 @@ function cssXPath(rule) {
 // Wrap result object and return only xPath string;
 function cssXPathToString(rule) {
     const xpathResult = cssXPath(rule);
-    if (xpathResult.error) {
-        console.error(xpathResult.error)
-    }
+    xpathResult.error && console.error('ERROR!', xpathResult.error);
+    if (xpathResult.warning) console.warn('WARN!', xpathResult.warning);
     return xpathResult.xpath;
     // todo in dev mod return {xpath: ''} or {error: ''} (but never null)
 }
