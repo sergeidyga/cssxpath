@@ -89,41 +89,37 @@ function attributeValue(string) {
         };
 }
 
-/**
- * `unsupportedPseudo(string)` matches the pieces of a CSS selector that represent a pseudo selector.
- *  TODO: get rid of this. Throw error if can't parse pseudo
- */
-function unsupportedPseudo(string) {
-    const CSS_UNSUPPORTED_PSEUDO_PATTERN = /^(::?([a-z-]+)\(?[a-z0-9\s]*\)?)\s*/i;
-    const matches = CSS_UNSUPPORTED_PSEUDO_PATTERN.exec(string);
-    if (!!matches) return {
-        fullGroup: matches[1],
-        type: matches[2]
-    };
-}
 
 /**
  *  `pseudo(string)` matches first part of supported pseudo selectors
  */
 function pseudo(string) {
-    const CSS_PSEUDO_PATTERN = /^((:[a-z-]+)\(\s*)(?![\s*\)]).+/i;
+    const CSS_PSEUDO_PATTERN = /^(:?:[a-z-]+)(\(\s*((?![\s*]+)[^()]+?)?\s*\))?/i;
     const matches = CSS_PSEUDO_PATTERN.exec(string);
     if (!!matches) return {
-        fullGroup: matches[1],
-        type: matches[2]
+        fullGroup: matches[0],
+        type: matches[1],
+        brackets: matches[2],
+        argument: matches[3] // Caution! Can be undefined
     };
 }
 
 /**
- *  `pseudoEnd(string)` matches closing part of supported pseudo selectors, e.g. ")"
+ *  validate (1n+0) based argument in position pseudo classes
  */
-function pseudoClosing(string) {
-    const CSS_PSEUDO_PATTERN = /^\s*(\))/i;
-    const matches = CSS_PSEUDO_PATTERN.exec(string);
+function nthArgument(string) {
+    const CSS_NTH_ARGUMENT = /^([-]?\d+)*$|^([-]?\d+)*n([+-][\d]+)?$|^(odd)$|^(even)$/;
+    const matches = CSS_NTH_ARGUMENT.exec(string);
     if (!!matches) return {
         fullGroup: matches[0],
-    };
+        number: matches[1],
+        mod: matches[2],
+        pos: matches[3],
+        odd: matches[4],
+        even: matches[5]
+    }
 }
+
 
 /**
  * `combinator(string)` matches the pieces of a CSS selector that represent a combinator.
@@ -142,7 +138,7 @@ function combinator(string) {
  * `comma(string)` matches commas in a CSS selector; used for disjunction.
  */
 function comma(string) {
-    const COMMA_PATTERN = /(^\s*(([,]){1}?\s*))[\[*a-z0-9#._-]+/i;
+    const COMMA_PATTERN = /(^\s*(([,]){1}?\s*))[:[]*[*a-z0-9#._-]+/i;
     const matches = COMMA_PATTERN.exec(string);
     if (!!matches) return {
         fullGroup: matches[1],
@@ -155,9 +151,8 @@ module.exports = {
     element,
     attributePresence,
     attributeValue,
-    unsupportedPseudo,
     combinator,
     comma,
     pseudo,
-    pseudoClosing
+    nthArgument
 };
