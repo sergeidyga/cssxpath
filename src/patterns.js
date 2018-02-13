@@ -89,30 +89,18 @@ function attributeValue(string) {
         };
 }
 
-/**
- * `unsupportedPseudo(string)` matches the pieces of a CSS selector that represent a pseudo selector.
- *  TODO: get rid of this. Throw error if can't parse pseudo
- */
-function unsupportedPseudo(string) {
-    const CSS_UNSUPPORTED_PSEUDO_PATTERN = /^(::?([a-z-]+)\(?[a-z0-9\s]*\)?)\s*/i;
-    const matches = CSS_UNSUPPORTED_PSEUDO_PATTERN.exec(string);
-    if (!!matches) return {
-        fullGroup: matches[1],
-        type: matches[2]
-    };
-}
 
 /**
  *  `pseudo(string)` matches first part of supported pseudo selectors
  */
 function pseudo(string) {
-    const CSS_PSEUDO_PATTERN = /^((:[a-z-]+)\(\s*)((?![\s*]+)[^()]+?)\s*\)/i;
+    const CSS_PSEUDO_PATTERN = /^(:?:[a-z-]+)(\(\s*((?![\s*]+)[^()]+?)?\s*\))?/i;
     const matches = CSS_PSEUDO_PATTERN.exec(string);
     if (!!matches) return {
         fullGroup: matches[0],
-        firstGroup: matches[1],
-        type: matches[2],
-        argument: matches[3]
+        type: matches[1],
+        brackets: matches[2],
+        argument: matches[3] // Caution! Can be undefined
     };
 }
 
@@ -133,18 +121,6 @@ function nthArgument(string) {
 }
 
 
-
-/**
- *  `pseudoEnd(string)` matches closing part of supported pseudo selectors, e.g. ")"
- */
-function pseudoClosing(string) {
-    const CSS_PSEUDO_PATTERN = /^\s*(\))/i;
-    const matches = CSS_PSEUDO_PATTERN.exec(string);
-    if (!!matches) return {
-        fullGroup: matches[0],
-    };
-}
-
 /**
  * `combinator(string)` matches the pieces of a CSS selector that represent a combinator.
  *  e.g., +, ~ or >
@@ -162,7 +138,7 @@ function combinator(string) {
  * `comma(string)` matches commas in a CSS selector; used for disjunction.
  */
 function comma(string) {
-    const COMMA_PATTERN = /(^\s*(([,]){1}?\s*))[\[*a-z0-9#._-]+/i;
+    const COMMA_PATTERN = /(^\s*(([,]){1}?\s*))[:[]*[*a-z0-9#._-]+/i;
     const matches = COMMA_PATTERN.exec(string);
     if (!!matches) return {
         fullGroup: matches[1],
@@ -175,10 +151,8 @@ module.exports = {
     element,
     attributePresence,
     attributeValue,
-    unsupportedPseudo,
     combinator,
     comma,
     pseudo,
-    pseudoClosing,
     nthArgument
 };

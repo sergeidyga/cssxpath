@@ -1,64 +1,96 @@
-cssxpath
-====================
-Converts CSS3 selectors into XPath expression. Based on abandoned [Firebug code](https://github.com/firebug/firebug/blob/master/extension/content/firebug/lib/xpath.js).
+#convert-cssxpath
 
-Install
-------------
-`npm i convert-cssxpath`
+## Yet another CSS to XPath converter
+Simple and correct XPath output, that's all
 
-Examples
------
-```js
-const cssxpath = require('convert-cssxpath');
-cssxpath.convert('[attribute]')
-/*
-* Output: //*[@attribute]
-*/
-```
-Or if you want to test different CSS selectors - you may input them in prompt using:
-```js
-const cssxpath = require('convert-cssxpath');
-cssxpath.ask()
-/*
-* Run console interface and ask you to enter CSS selector
-*/
-```
-Pseudo selector :not() is fully supported. For example:
-```js
-cssxpath.convert(':not([attribute])')
-/*
-* Output: //*[not(@attribute)]
-*/
-```
-If CSS selector is wrong console will output the reason:
-```js
-cssxpath.ask()
-/*
-*   If invalid css was entered in the console:
-* 
-* CSS > :not(123)
-*     > Wrong pseudo selector argument.
-* 
-*/
-```
-You can see other supported examples in `./test/test.js`
+<span style="display:block;text-align:center">![Interactive-console-demo](./interactive_console.png)</span>
 
-What is next
-------------
-Support of those expressions will be added in next versions:
-- :nth-child(n)
+## Install
+`$ npm i convert-cssxpath`
+
+## Usage
+Require:
+```js
+var cssxpath = require('convert-cssxpath');
+```
+Convert and get string:
+```js
+cssxpath.convert('a b > c');
+```
+Or call interactive console:
+```js
+cssxpath.ask();
+```
+Convert and get object (dev mode):
+```js
+cssxpath.convert('a:nth', true);
+```
+```js
+// returns object: 
+    { xpath: '//a[(position() - 1) mod 2 = 0]',
+      warning: 'XPath condition [position() >= 1] was omitted',
+      error: undefined }
+```
+
+### Convert
+When using convert(css) function - logs are printed directly in console. For example:
+```js
+console.log(cssxpath.convert('[]invalid-css'));
+```
+Empty string is returned. Console logs:
+```js
+// ERROR! Invalid CSS selector.
+```
+
+__Developer mode__ makes it easy to overwrite logs behavior. For example:
+```js
+var css = 'a b > c';
+var xpath = cssxpath.convert(css, true);
+console.log( xpath.error ? `Seems your CSS '${css}' was wrong!` : css );
+```
+To turn on __Developer mode__ and receive _object_ instead of _string_, simply put 'true' as the second parameter after css.
+
+### Pseudo-classes
+Use __:not(_selector_)__. Multiply not() arguments are fully supported:
+```js
+cssxpath.convert(':not(a b > c[attr])');
+```
+Output:
+```js
+//*[not(ancestor::a and parent::b and self::c[@attr])]
+```
+_*Deep nesting [is experimental in CSS](https://developer.mozilla.org/en-US/docs/Web/CSS/:not), so it's better to avoid it._
+
+Use __:nth-of-type(_nth_)__:
+```js
+cssxpath.convert('a:nth-of-type(odd)');
+```
+Output:
+```js
+//a[(position() - 1) mod 2 = 0]
+```
+
+Use __:nth-child(_nth_)__. N-based syntax (e.g. -3n+2 etc) if fully supported for all nth- pseudos:
+```js
+cssxpath.convert('a+b:nth-child(n+3)');
+```
+Output:
+```js
+//a/following-sibling::b[1][count(preceding-sibling::*) >= 2]
+
+```
+
+
+##What is next
+Coming soon: support of remaining pseudo-classes: 
 - :nth-last-child(n)
-- nth-of-type(n)
-- nth-last-of-type(n)
+- :nth-last-of-type(n)
 
-Other pseudo selectors (e.g. :disabled) are also not supported.
-Selectors with position such as :nth-child(n) are trimmed out from input CSS in this version.
+##Test
+`$ npm test` - run over 250 tests
 
-Changelog
-------------
-_`- v.0.0.4 full support of :not(selector)`_
+####Changelog
+_`v.1.0.1 - full support of :nth pseudos; documentation; dev mode; error fixes`_
 
-License
--------
-[BSD 3-clause license](https://github.com/firebug/firebug/blob/master/extension/license.txt) (since it's based on Firefox code)
+_`v.0.0.4 - full support of :not(selector)`_
 

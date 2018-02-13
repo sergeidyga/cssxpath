@@ -1,4 +1,5 @@
 const readline = require("readline");
+const clc = require('cli-color');
 const cssxpath = require('../index');
 
 
@@ -13,7 +14,7 @@ let promptCall = () => {
             rl.close();
         } else {
             let result = cssxpath.convert(css);
-            result && console.log('xPath:', result);
+            result && console.log(clc.green('>>'), result);
             promptCall();
         }
     })

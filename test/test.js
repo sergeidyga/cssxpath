@@ -1,6 +1,5 @@
 const assert = require('assert');
 const cssxpath = require('../index');
-const cssxpathObject = require('../src/cssxpath').cssXpath;
 
 let testPairs = [
 
@@ -63,6 +62,7 @@ let testPairs = [
     ['a, b', '//a | //b'],
     ['a , b', '//a | //b'],
     ['a ,b', '//a | //b'],
+    [':not(a), :not(b)', '//*[not(self::a)] | //*[not(self::b)]'],
     ['[attrName], [attrName]', '//*[@attrName] | //*[@attrName]'],
     ['.value, .value', '//*[contains(@class, "value")] | //*[contains(@class, "value")]'],
     ['#value, #value', '//*[@id="value"] | //*[@id="value"]'],
@@ -76,20 +76,37 @@ let testPairs = [
     // Pseudo :not(selector)
     [':not(a)', '//*[not(self::a)]'],
     [':not( a )', '//*[not(self::a)]'],
-    [':not(#idValue)', '//*[not(@id="idValue")]'],
-    [':not( #idValue )', '//*[not(@id="idValue")]'],
-    [':not(.className)', '//*[not(contains(@class, "className"))]'],
-    [':not( .className )', '//*[not(contains(@class, "className"))]'],
-    [':not([attr])', '//*[not(@attr)]'],
-    [':not( [attr] )', '//*[not(@attr)]'],
-    [':not( [ attr ] )', '//*[not(@attr)]'],
-    [':not([attr="value"])', '//*[not(@attr="value")]'],
-    [':not([ attr = "value" ])', '//*[not(@attr="value")]'],
-    ['a:not([attr])', '//a[not(@attr)]'],
-    ['a b:not([attr])', '//a//b[not(@attr)]'],
-    ['.className a:not([attr])', '//*[contains(@class, "className")]//a[not(@attr)]'],
-    ['.className :not([attr])', '//*[contains(@class, "className")]//*[not(@attr)]'],
-    ['.className :not([attr]):not(#idValue)', '//*[contains(@class, "className")]//*[not(@attr)][not(@id="idValue")]'],
+    [':not(#idValue)', '//*[not(self::*[@id="idValue"])]'],
+    [':not( #idValue )', '//*[not(self::*[@id="idValue"])]'],
+    [':not(.className)', '//*[not(self::*[contains(@class, "className")])]'],
+    [':not( .className )', '//*[not(self::*[contains(@class, "className")])]'],
+    [':not([attr])', '//*[not(self::*[@attr])]'],
+    [':not( [attr] )', '//*[not(self::*[@attr])]'],
+    [':not( [ attr ] )', '//*[not(self::*[@attr])]'],
+    [':not([attr="value"])', '//*[not(self::*[@attr="value"])]'],
+    [':not([ attr = "value" ])', '//*[not(self::*[@attr="value"])]'],
+    ['a:not([attr])', '//a[not(self::*[@attr])]'],
+    ['a b:not([attr])', '//a//b[not(self::*[@attr])]'],
+    ['.className a:not([attr])', '//*[contains(@class, "className")]//a[not(self::*[@attr])]'],
+    ['.className :not([attr])', '//*[contains(@class, "className")]//*[not(self::*[@attr])]'],
+    ['.className :not([attr]):not(#idValue)', '//*[contains(@class, "className")]//*[not(self::*[@attr])][not(self::*[@id="idValue"])]'],
+
+    //:not with arguments
+    [':not(a b)', '//*[not(ancestor::a and self::b)]'],
+    [':not(a[b])', '//*[not(self::a[@b])]'],
+    [':not(a[b=2])', '//*[not(self::a[@b="2"])]'],
+    [':not(a.b)', '//*[not(self::a[contains(@class, "b")])]'],
+    [':not(a#b)', '//*[not(self::a[@id="b"])]'],
+    [':not(.a[b])', '//*[not(self::*[contains(@class, "a")][@b])]'],
+    [':not(#a[b])', '//*[not(self::*[@id="a"][@b])]'],
+    [':not([a=b][b=c])', '//*[not(self::*[@a="b"][@b="c"])]'],
+
+    //:not with nesting //todo it will be changed for deep nesting support in next versions
+    [':not(a b c)', '//*[not(ancestor::a and ancestor::b and self::c)]'],
+    [':not(a b>c)', '//*[not(ancestor::a and parent::b and self::c)]'],
+    [':not(a b~c)', '//*[not(ancestor::a and preceding-sibling::b and self::c)]'],
+    [':not(a b+c)', '//*[not(ancestor::a and preceding-sibling::b and self::c[name(preceding-sibling::*[1]) != name()])]'],
+    [':not(a[myAttr] b.myClass+c)', '//*[not(ancestor::a[@myAttr] and preceding-sibling::b[contains(@class, "myClass")] and self::c[name(preceding-sibling::*[1]) != name()])]'],
 
     // Pseudo :nth-child(n)
     [':nth-child(1)', '//*[1]'],
@@ -98,11 +115,11 @@ let testPairs = [
     ['a :nth-child( 2 )', '//a//*[2]'],
     ['#idValue:nth-child(2)', '//*[2][@id="idValue"]'],
     ['.className:nth-child(2)', '//*[2][contains(@class, "className")]'],
-    ['#idValue.className:nth-child(2)', '//*[2][contains(@class, "className")][@id="idValue"]'],
+    ['#idValue.className:nth-child(2)', '//*[2][@id="idValue"][contains(@class, "className")]'],
     ['a:nth-child(2)', '//*[2]/self::a'],
     ['a b:nth-child(2)', '//a//*[2]/self::b'],
-    ['a b#idValue.className:nth-child(2)', '//a//*[2]/self::b[contains(@class, "className")][@id="idValue"]'],
-    ['a[b=1][c="2"]:nth-child(1)', '//*[1]/self::a[@c="2"][@b="1"]'],
+    ['a b#idValue.className:nth-child(2)', '//a//*[2]/self::b[@id="idValue"][contains(@class, "className")]'],
+    ['a[b=1][c="2"]:nth-child(1)', '//*[1]/self::a[@b="1"][@c="2"]'],
     [':nth-child(1) :nth-child(2)', '//*[1]//*[2]'],
     ['a:nth-child(1) b:nth-child(2)', '//*[1]/self::a//*[2]/self::b'],
     ['a+b:nth-child(2)', '//a/following-sibling::b[1][count(preceding-sibling::*) = 1]'],
@@ -119,10 +136,10 @@ let testPairs = [
     [':nth-of-type(2)', '//*[name(preceding-sibling::*[2]) != name() and name(preceding-sibling::*[1]) = name()]'],
     [':nth-of-type(150)', '//*[name(preceding-sibling::*[150]) != name() and name(preceding-sibling::*[149]) = name()]'],
     ['a b:nth-of-type( 2 )', '//a//b[2]'],
-    ['#idValue:nth-of-type(2)', '//*[name(preceding-sibling::*[2]) != name() and name(preceding-sibling::*[1]) = name()][@id="idValue"]'],
-    ['.className:nth-of-type(2)', '//*[name(preceding-sibling::*[2]) != name() and name(preceding-sibling::*[1]) = name()][contains(@class, "className")]'],
-    ['a#idValue.className:nth-of-type(2)', '//a[2][contains(@class, "className")][@id="idValue"]'],
-    ['a[b=1][c="2"]:nth-of-type(1)', '//a[1][@c="2"][@b="1"]'],
+    ['#idValue:nth-of-type(2)', '//*[@id="idValue"][name(preceding-sibling::*[2]) != name() and name(preceding-sibling::*[1]) = name()]'],
+    ['.className:nth-of-type(2)', '//*[contains(@class, "className")][name(preceding-sibling::*[2]) != name() and name(preceding-sibling::*[1]) = name()]'],
+    ['a#idValue.className:nth-of-type(2)', '//a[@id="idValue"][contains(@class, "className")][2]'],
+    ['a[b=1][c="2"]:nth-of-type(1)', '//a[@b="1"][@c="2"][1]'],
     ['a:nth-of-type(1) b:nth-of-type(2)', '//a[1]//b[2]'],
     [':nth-of-type(1) b:nth-of-type(2)', '//*[name(preceding-sibling::*[1]) != name()]//b[2]'],
     ['a+b:nth-of-type(1)', '//a/following-sibling::b[1]'],
@@ -144,19 +161,18 @@ let testPairs = [
     ['a:nth-of-type(-3n+5)', '//a[(position() - 5) mod 3 = 0 and position() <= 5]'],
     ['a:nth-of-type(4n-5)', '//a[(position() + 5) mod 4 = 0]'],
     ['a:nth-of-type(2n+1)', '//a[(position() - 1) mod 2 = 0]'],
-    ['a.someClass#someId[attr1][attr2="value"]:nth-of-type(2n+3)', '//a[(position() - 3) mod 2 = 0 and position() >= 3][@attr2="value"][@attr1][@id="someId"][contains(@class, "someClass")]'],
+    ['a.someClass#someId[attr1][attr2="value"]:nth-of-type(2n+3)', '//a[contains(@class, "someClass")][@id="someId"][@attr1][@attr2="value"][(position() - 3) mod 2 = 0 and position() >= 3]'],
     ['a:nth-of-type(odd)', '//a[(position() - 1) mod 2 = 0]'],
     ['a:nth-of-type(even)', '//a[position() mod 2 = 0]'],
     ['a:nth-of-type(3n)', '//a[position() mod 3 = 0]'],
     ['a~b:nth-of-type(3n+2)', '//a/following-sibling::b[(position() - 2) mod 3 = 0 and position() >= 2]'],
     ['a~b:nth-of-type(3n-2)', '//a/following-sibling::b[(position() + 2) mod 3 = 0]'],
-    ['a+b:nth-of-type(-3n+2)', '//a/following-sibling::b[1][(position() - 2) mod 3 = 0 and position() <= 2]'],
     ['a+b:nth-of-type(125n+1)', '//a/following-sibling::b[1]'],
     ['a+b:nth-of-type(1n)', '//a/following-sibling::b[1]'],
-    ['a+b:nth-of-type(2n-1)', '//a/following-sibling::b[1][(position() + 1) mod 2 = 0]'],
+    ['a+b:nth-of-type(4n-3)', '//a/following-sibling::b[1]'],
     ['a+b:nth-of-type(2n+1)', '//a/following-sibling::b[1]'],
     ['a+b:nth-of-type(-15n+1)', '//a/following-sibling::b[1]'],
-    ['a+b:nth-of-type(-15n+16)', '//a/following-sibling::b[1][(position() - 16) mod 15 = 0 and position() <= 16]'],
+    ['a+b:nth-of-type(-15n+16)', '//a/following-sibling::b[1]'],
     ['a+b:nth-of-type(1)', '//a/following-sibling::b[1]'],
     ['a~b:nth-of-type(-15n+16)', '//a/following-sibling::b[(position() - 16) mod 15 = 0 and position() <= 16]'],
     ['a~b:nth-of-type(-15n+5)', '//a/following-sibling::b[(position() - 5) mod 15 = 0 and position() <= 5]'],
@@ -196,7 +212,7 @@ let testPairs = [
 
 ];
 
-describe('Unit tests', function () {
+describe('Conversion tests', function () {
     for (let i = 0; i < testPairs.length; i++) {
         it(`${testPairs[i][0]} is expected as ${testPairs[i][1]}`, function () {
             assert.equal(cssxpath.convert(testPairs[i][0]), testPairs[i][1]);
@@ -210,57 +226,50 @@ let negativeTestPairs = [
     ['', 'Empty CSS selector.'],
     [' ', 'Empty CSS selector.'],
 
-    ['123', 'Unsupported CSS selector.'],
-    ['a 123', 'Unsupported CSS selector.'],
-    ['a[*]', 'Unsupported CSS selector.'],
-    ['a b )', 'Unsupported CSS selector.'],
-    ['---a', 'Unsupported CSS selector.'],
-    ['___a', 'Unsupported CSS selector.'],
-    ['___a', 'Unsupported CSS selector.'],
-    ['[]', 'Unsupported CSS selector.'],
-    ['a[]', 'Unsupported CSS selector.'],
-    ['a[123]', 'Unsupported CSS selector.'],
-    ['[a=b=c]', 'Unsupported CSS selector.'],
-    ['[.a]', 'Unsupported CSS selector.'],
-    ['[#a]', 'Unsupported CSS selector.'],
-    ['[:not(a)]', 'Unsupported CSS selector.'],
-    ['[a:not(b)]', 'Unsupported CSS selector.'],
-    ['[a==b]', 'Unsupported CSS selector.'],
-    ['.', 'Unsupported CSS selector.'],
-    ['.:not(a)', 'Unsupported CSS selector.'],
-    ['#', 'Unsupported CSS selector.'],
-    ['[a="b"d"]', 'Unsupported CSS selector.'],
-    ['[a=\'b\'d\']', 'Unsupported CSS selector.'],
-    ['[a=b"d]', 'Unsupported CSS selector.'],
-    ['a>>b', 'Unsupported CSS selector.'],
-    ['a>', 'Unsupported CSS selector.'],
-    ['a,,b', 'Unsupported CSS selector.'],
-    ['a,', 'Unsupported CSS selector.'],
-    ['a,', 'Unsupported CSS selector.'],
-    ['a++', 'Unsupported CSS selector.'],
-    ['a+', 'Unsupported CSS selector.'],
-    ['a + +', 'Unsupported CSS selector.'],
-    ['a[b=c', 'Unsupported CSS selector.'],
-    ['**', 'Unsupported CSS selector.'],
+    ['123', 'Invalid CSS selector.'],
+    ['a 123', 'Invalid CSS selector.'],
+    ['a[*]', 'Invalid CSS selector.'],
+    ['a b )', 'Invalid CSS selector.'],
+    ['---a', 'Invalid CSS selector.'],
+    ['___a', 'Invalid CSS selector.'],
+    ['___a', 'Invalid CSS selector.'],
+    ['[]', 'Invalid CSS selector.'],
+    ['a[]', 'Invalid CSS selector.'],
+    ['a[123]', 'Invalid CSS selector.'],
+    ['[a=b=c]', 'Invalid CSS selector.'],
+    ['[.a]', 'Invalid CSS selector.'],
+    ['[#a]', 'Invalid CSS selector.'],
+    ['[:not(a)]', 'Invalid CSS selector.'],
+    ['[a:not(b)]', 'Invalid CSS selector.'],
+    ['[a==b]', 'Invalid CSS selector.'],
+    ['.', 'Invalid CSS selector.'],
+    ['.:not(a)', 'Invalid CSS selector.'],
+    ['#', 'Invalid CSS selector.'],
+    ['[a="b"d"]', 'Invalid CSS selector.'],
+    ['[a=\'b\'d\']', 'Invalid CSS selector.'],
+    ['[a=b"d]', 'Invalid CSS selector.'],
+    ['a>>b', 'Invalid CSS selector.'],
+    ['a>', 'Invalid CSS selector.'],
+    ['a,,b', 'Invalid CSS selector.'],
+    ['a,', 'Invalid CSS selector.'],
+    ['a,', 'Invalid CSS selector.'],
+    ['a++', 'Invalid CSS selector.'],
+    ['a+', 'Invalid CSS selector.'],
+    ['a + +', 'Invalid CSS selector.'],
+    ['a[b=c', 'Invalid CSS selector.'],
+    ['**', 'Invalid CSS selector.'],
+    ['a, :::not()', 'Invalid CSS selector.'],
+    ['a, [[[a]', 'Invalid CSS selector.'],
 
-    [':not(a b)', 'Wrong pseudo selector argument.'],
-    [':not(a[b])', 'Wrong pseudo selector argument.'],
-    [':not(a[b=2])', 'Wrong pseudo selector argument.'],
-    [':not(a.b)', 'Wrong pseudo selector argument.'],
-    [':not(a#b)', 'Wrong pseudo selector argument.'],
-    [':not(.a[b])', 'Wrong pseudo selector argument.'],
-    [':not(#a[b])', 'Wrong pseudo selector argument.'],
-    [':not([a=b][b=c])', 'Wrong pseudo selector argument.'],
+    [':not()', 'Unsupported pseudo :not() with undefined argument'],
+    ['::not', 'Unsupported pseudo ::not'],
+    [':not', 'Unsupported pseudo :not'],
+    [':checked(selector)', 'Unsupported pseudo :checked(selector)'],
 
-    [':not()', 'Unsupported pseudo'],
-    [':nth-child()', 'Unsupported pseudo'],
-    [':not', 'Unsupported pseudo'],
-    ['::checked', 'Unsupported pseudo'],
-    [':checked', 'Unsupported pseudo'],
-
-    [':nth-child(a)', 'Unable to parse pseudo argument'],
-    [':nth-child(a1)', 'Unable to parse pseudo argument'],
-    [':nth-child(1 2)', 'Unable to parse pseudo argument'],
+    [':not(1)', 'Unable to parse :not argument \'1\''],
+    [':nth-child(a)', 'Unable to parse :nth- argument \'a\''],
+    [':nth-child(a1)', 'Unable to parse :nth- argument \'a1\''],
+    ['a:nth-of-type(1 2)', 'Unable to parse :nth- argument \'1 2\''],
 
     ['a+b:nth-child(1)', 'This locator will always return null'],
     ['a~b:nth-child(1)', 'This locator will always return null'],
@@ -270,14 +279,14 @@ let negativeTestPairs = [
     ['a+*:nth-of-type(4)', 'This locator will always return null'],
 
     // Incorrect nth arguments:
-    [':nth-child(n+)', 'Unable to parse pseudo argument'],
-    [':nth-child(-n)', 'Unable to parse pseudo argument'],
-    [':nth-child(-)', 'Unable to parse pseudo argument'],
-    [':nth-child(-n+1)', 'Unable to parse pseudo argument'],
-    [':nth-child(-n+1)', 'Unable to parse pseudo argument'],
-    [':nth-child(+1)', 'Unable to parse pseudo argument'],
-    [':nth-child(n1)', 'Unable to parse pseudo argument'],
-    [':nth-child(1+n)', 'Unable to parse pseudo argument'],
+    [':nth-child(n+)', 'Unable to parse :nth- argument'],
+    [':nth-child(-n)', 'Unable to parse :nth- argument'],
+    [':nth-child(-)', 'Unable to parse :nth- argument'],
+    [':nth-child(-n+1)', 'Unable to parse :nth- argument'],
+    [':nth-child(-n+1)', 'Unable to parse :nth- argument'],
+    [':nth-child(+1)', 'Unable to parse :nth- argument'],
+    [':nth-child(n1)', 'Unable to parse :nth- argument'],
+    [':nth-child(1+n)', 'Unable to parse :nth- argument'],
 
     // Always null nth arguments:
     [':nth-child(-1n)', 'This locator will always return null'],
@@ -287,17 +296,20 @@ let negativeTestPairs = [
     ['a:nth-of-type(-1n-1)', 'This locator will always return null'],
     [':nth-child(-1n-1)', 'This locator will always return null'],
     ['a+b:nth-of-type(n+2)', 'This locator will always return null'],
+    ['a+b:nth-of-type(-3n+2)', 'This locator will always return null'],
 
-    // Not supported in this version *:nth-of-type
-    [':nth-of-type(-1n+2)', 'Argument \'-1n+2\' is not supported for *:nth-of-type in this version.'],
+    // Not supported in this version
+    [':nth-of-type(-2n+5)', 'Argument \'-2n+5\' is not supported for *:nth-of-type in this version.'],
+    [':not(a>b>c)', 'This version supports only single nesting level for \'>\' argument in :not(). You have used it 2 times: \'a>b>c\'']
+
 
 ];
 
 
-describe('Negative unit tests', function () {
+describe('Error logs tests', function () {
     for (let i = 0; i < negativeTestPairs.length; i++) {
         it(`"${negativeTestPairs[i][0]}" is expected to cause log: "${negativeTestPairs[i][1]}"`, function () {
-            assert((cssxpathObject(negativeTestPairs[i][0]).error).startsWith(negativeTestPairs[i][1]), `Actual: ${cssxpathObject(negativeTestPairs[i][0]).error}`);
+            assert((cssxpath.convert(negativeTestPairs[i][0], true).error).startsWith(negativeTestPairs[i][1]), `Actual: ${cssxpath.convert(negativeTestPairs[i][0], true).error}`);
         });
     }
 });
@@ -320,12 +332,27 @@ let warningTestPairs = [
 
 ];
 
-describe('Warning unit tests', function () {
+describe('Warning logs tests', function () {
     for (let i = 0; i < warningTestPairs.length; i++) {
         it(`"${warningTestPairs[i][0]}" is expected to cause log: "${warningTestPairs[i][1]}"`, function () {
-            assert((cssxpathObject(warningTestPairs[i][0]).warning).startsWith(warningTestPairs[i][1]), `Actual: ${cssxpathObject(warningTestPairs[i][0]).warning}`);
+            assert((cssxpath.convert(warningTestPairs[i][0], true).warning).startsWith(warningTestPairs[i][1]), `Actual: ${cssxpath.convert(warningTestPairs[i][0], true).warning}`);
         });
     }
+});
+
+describe('Developer mode tests', function () {
+    it(`If returnMode is not defined - function must return string`, function () {
+        assert.equal(typeof cssxpath.convert('a'), 'string');
+    });
+    it(`If returnMode is false -  - function must return string`, function () {
+        assert.equal(typeof cssxpath.convert('a', false), 'string');
+    });
+    it(`If returnMode is true - function must return object`, function () {
+        assert.equal(typeof cssxpath.convert('a', true), 'object');
+    });
+    it(`If returnMode is not boolean - function must throw SyntaxError`, function () {
+        assert.throws(function() {cssxpath.convert('a', 1)}, SyntaxError, 'expected returnObject argument type is boolean');
+    });
 });
 
 // todo test of turning warnings on/off
